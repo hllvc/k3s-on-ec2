@@ -8,3 +8,8 @@ output "kubeconfig" {
   )
   sensitive = true
 }
+
+output "ssh_public_key" {
+  description = "SSH public key for the generated key pair"
+  value       = tls_private_key.this.public_key_openssh
+}

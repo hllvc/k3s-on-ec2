@@ -7,6 +7,17 @@ resource "random_string" "this" {
   special = false
 }
 
+# Generate SSH key pair
+resource "tls_private_key" "this" {
+  algorithm = "ED25519"
+}
+
+# Create AWS key pair using the generated public key
+resource "aws_key_pair" "this" {
+  key_name   = random_string.this.result
+  public_key = tls_private_key.this.public_key_openssh
+}
+
 # Security Group for K3s
 resource "aws_security_group" "this" {
   name        = random_string.this.result
@@ -55,7 +66,7 @@ resource "aws_instance" "this" {
   ami           = data.aws_ami.this.id
   instance_type = "t3.medium"
 
-  key_name = var.aws_key_name
+  key_name = aws_key_pair.this.key_name
 
   subnet_id              = var.public_subnet_id
   vpc_security_group_ids = [aws_security_group.this.id]
@@ -71,7 +82,7 @@ resource "aws_instance" "this" {
     connection {
       host        = self.public_ip
       user        = "ubuntu"
-      private_key = var.ssh_private_key
+      private_key = tls_private_key.this.private_key_openssh
     }
 
     inline = [<<-EOT
@@ -90,7 +101,7 @@ resource "aws_instance" "this" {
     quiet   = true
     command = <<-EOT
       TEMP_KEY="$(mktemp)"
-      echo "${var.ssh_private_key}" > "$TEMP_KEY"
+      echo "${tls_private_key.this.private_key_openssh}" > "$TEMP_KEY"
       ssh -o StrictHostKeyChecking=no \
         -i "$TEMP_KEY" \
         ubuntu@${aws_instance.this.public_ip} \
