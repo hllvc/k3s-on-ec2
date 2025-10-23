@@ -115,7 +115,7 @@ resource "aws_instance" "this" {
 
     quiet   = true
     command = <<-EOT
-      [ -f .kubeconfig ] && rm .kubeconfig
+      [ -f .kubeconfig ] && rm .kubeconfig || true
     EOT
   }
 }
