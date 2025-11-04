@@ -96,21 +96,6 @@ resource "aws_instance" "this" {
   }
 
   provisioner "local-exec" {
-    when = create
-
-    quiet   = true
-    command = <<-EOT
-      TEMP_KEY="$(mktemp)"
-      echo "${tls_private_key.this.private_key_openssh}" > "$TEMP_KEY"
-      ssh -o StrictHostKeyChecking=no \
-        -i "$TEMP_KEY" \
-        ubuntu@${aws_instance.this.public_ip} \
-        "sudo cat /etc/rancher/k3s/k3s.yaml" > .kubeconfig
-      rm -f "$TEMP_KEY"
-    EOT
-  }
-
-  provisioner "local-exec" {
     when = destroy
 
     quiet   = true
@@ -118,4 +103,34 @@ resource "aws_instance" "this" {
       [ -f .kubeconfig ] && rm .kubeconfig || true
     EOT
   }
+}
+
+# Fetch kubeconfig on every apply/refresh
+resource "terraform_data" "fetch_kubeconfig" {
+  triggers_replace = {
+    always_run = timestamp()
+  }
+
+  provisioner "local-exec" {
+    quiet   = true
+    command = <<-EOT
+      TEMP_KEY="$(mktemp)"
+      echo "${tls_private_key.this.private_key_openssh}" > "$TEMP_KEY"
+      ssh -o StrictHostKeyChecking=no \
+        -i "$TEMP_KEY" \
+        ubuntu@${aws_instance.this.public_ip} \
+        "sudo cat /etc/rancher/k3s/k3s.yaml" | \
+        sed "s/127.0.0.1/${aws_instance.this.public_ip}/g" > .kubeconfig
+      rm -f "$TEMP_KEY"
+    EOT
+  }
+
+  depends_on = [aws_instance.this]
+}
+
+# Read the kubeconfig file after it's been fetched
+data "local_file" "kubeconfig" {
+  filename = "${path.module}/.kubeconfig"
+
+  depends_on = [terraform_data.fetch_kubeconfig]
 }

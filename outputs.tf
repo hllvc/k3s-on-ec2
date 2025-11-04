@@ -1,8 +1,6 @@
 output "kubeconfig" {
   value = replace(
-    fileexists("${path.module}/.kubeconfig")
-    ? file("${path.module}/.kubeconfig")
-    : "",
+    data.local_file.kubeconfig.content,
     "0.0.0.0",
     aws_instance.this.public_ip
   )
