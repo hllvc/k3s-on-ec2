@@ -26,6 +26,7 @@ resource "aws_security_group" "this" {
 
   # Kubernetes API server
   ingress {
+    description = "Allow Kubernetes API access"
     from_port   = 6443
     to_port     = 6443
     protocol    = "tcp"
@@ -34,6 +35,7 @@ resource "aws_security_group" "this" {
 
   # SSH access
   ingress {
+    description = "Allow SSH access"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
@@ -42,6 +44,7 @@ resource "aws_security_group" "this" {
 
   # Allow all outbound traffic
   egress {
+    description = "Allow all outbound traffic"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -64,7 +67,7 @@ data "aws_ami" "this" {
 # EC2 Instance with K3s
 resource "aws_instance" "this" {
   ami           = data.aws_ami.this.id
-  instance_type = "t3.medium"
+  instance_type = var.instance_type
 
   key_name = aws_key_pair.this.key_name
 
@@ -75,6 +78,15 @@ resource "aws_instance" "this" {
   associate_public_ip_address = true
 
   user_data_base64 = base64encode(file("${path.module}/user_data.sh"))
+
+  metadata_options {
+    http_endpoint = "enabled"
+    http_tokens   = "required"
+  }
+
+  root_block_device {
+    encrypted = true
+  }
 
   provisioner "remote-exec" {
     when = create
